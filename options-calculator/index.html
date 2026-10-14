@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Payoff, breakevens and what-if P/L for stock option strategies.">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#f3f6f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0d1419" media="(prefers-color-scheme: dark)">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Options Calc">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+body{margin:0;-webkit-text-size-adjust:100%}
+img{max-width:100%}[hidden]{display:none!important}
+</style>
+<title>Options Scenario Calculator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: trading-ticket split — order ticket on the left, risk read-out (stats, payoff chart, scenario grid) on the right; stacks on phones. */
+:root{
+  --bg:#f3f6f8; --surface:#ffffff; --ink:#14212b; --muted:#5b6b77; --line:#d9e1e6;
+  --accent:#1d5c7a; --accent-soft:#e3eef4; --gain:#1c7f53; --loss:#bf3d36;
+  --gain-fill:rgba(28,127,83,.13); --loss-fill:rgba(191,61,54,.12);
+  --sans:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0d1419; --surface:#141f27; --ink:#e2eaef; --muted:#8d9da9; --line:#25333d;
+  --accent:#72b6d8; --accent-soft:#1a2d39; --gain:#4cc28a; --loss:#ee6c63;
+  --gain-fill:rgba(76,194,138,.14); --loss-fill:rgba(238,108,99,.13); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0d1419; --surface:#141f27; --ink:#e2eaef; --muted:#8d9da9; --line:#25333d;
+  --accent:#72b6d8; --accent-soft:#1a2d39; --gain:#4cc28a; --loss:#ee6c63;
+  --gain-fill:rgba(76,194,138,.14); --loss-fill:rgba(238,108,99,.13); color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding-block:28px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:22px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 20px}
+h1{font-size:1.65rem;font-weight:700;letter-spacing:-.01em;margin:0;text-wrap:balance}
+header p{margin:0;color:var(--muted);font-size:.9rem}
+.grid{display:grid;grid-template-columns:340px minmax(0,1fr);gap:22px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:20px}
+.ticket{display:grid;gap:14px}
+.ticket h2,.out h2{font-size:.72rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0;font-weight:600}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+label{display:grid;gap:5px;font-size:.82rem;font-weight:500;color:var(--muted)}
+input,select{font:inherit;font-size:.95rem;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px;width:100%;box-sizing:border-box;min-width:0}
+input.num{font-family:var(--mono);font-size:.9rem}
+input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+#sym{text-transform:uppercase;font-family:var(--mono);font-weight:600;letter-spacing:.04em}
+.hint{font-size:.82rem;color:var(--muted);background:var(--accent-soft);border-radius:6px;padding:9px 11px;margin:0}
+.err{font-size:.82rem;color:var(--loss);margin:0}
+.quote{font-size:.8rem;color:var(--accent)}
+details summary{cursor:pointer;font-size:.82rem;color:var(--muted);font-weight:500}
+details[open] summary{margin-bottom:10px}
+.out{display:grid;gap:18px;min-width:0}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+@media (max-width:600px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.stat{background:var(--surface);padding:14px 16px;display:grid;gap:2px;min-width:0}
+.stat span{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+.stat b{font-family:var(--mono);font-size:1.15rem;font-weight:600;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.pos{color:var(--gain)} .neg{color:var(--loss)}
+.chart-head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px}
+.legend{display:flex;gap:14px;font-size:.78rem;color:var(--muted)}
+.legend i{display:inline-block;width:18px;height:0;border-top:2px solid var(--ink);vertical-align:middle;margin-right:5px}
+.legend i.d{border-top:2px dashed var(--accent)}
+canvas{display:block;width:100%;height:320px;touch-action:none}
+.slider{display:grid;gap:6px;font-size:.85rem}
+.slider input{padding:0;background:none;border:0;accent-color:var(--accent)}
+.slider div{display:flex;justify-content:space-between;color:var(--muted);font-size:.8rem}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.86rem}
+th{font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600;text-align:right;padding:6px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+td{font-family:var(--mono);font-variant-numeric:tabular-nums;text-align:right;padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+tr.now td{background:var(--accent-soft)}
+.legs td input{width:92px;text-align:right;padding:5px 7px;font-family:var(--mono);font-size:.85rem}
+.legs td.code{font-size:.78rem;color:var(--muted)}
+.tag{display:inline-block;font-family:var(--sans);font-size:.7rem;font-weight:600;padding:1px 7px;border-radius:99px;background:var(--accent-soft);color:var(--accent)}
+button{font:inherit;font-size:.8rem;font-weight:600;color:var(--accent);background:none;border:1px solid var(--line);border-radius:6px;padding:5px 10px;cursor:pointer}
+.greeks{display:flex;flex-wrap:wrap;gap:8px 22px;font-size:.84rem;color:var(--muted)}
+.greeks b{font-family:var(--mono);color:var(--ink);font-weight:500}
+.foot{font-size:.78rem;color:var(--muted);max-width:75ch;margin:0}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Options Scenario Calculator</h1>
+    <p>Payoff, breakevens and what-if P/L for a single options position</p>
+  </header>
+
+  <div class="grid">
+    <form class="panel ticket" id="form" autocomplete="off">
+      <h2>Position</h2>
+      <div class="row">
+        <label>Stock symbol<input id="sym" value="AAPL" maxlength="6"></label>
+        <label>Stock price ($)<input id="spot" class="num" type="number" step="0.01" min="0.01" value="255.00"></label>
+      </div>
+      <a class="quote" id="quoteLink" href="https://finance.yahoo.com/quote/AAPL/options" target="_blank" rel="noopener">Look up the current price and option chain ↗</a>
+      <label>Strategy
+        <select id="strat">
+          <option value="long_call">Long call</option>
+          <option value="long_put">Long put</option>
+          <option value="covered_call">Covered call</option>
+          <option value="csp">Cash-secured put</option>
+          <option value="protective_put">Protective put</option>
+          <option value="bull_call">Bull call spread</option>
+          <option value="bear_put">Bear put spread</option>
+          <option value="straddle">Long straddle</option>
+          <option value="strangle">Long strangle</option>
+        </select>
+      </label>
+      <p class="hint" id="hint"></p>
+      <div class="row">
+        <label><span id="k1Label">Strike ($)</span><input id="k1" class="num" type="number" step="0.5" min="0.5" value="260"></label>
+        <label id="k2Wrap"><span id="k2Label">Second strike ($)</span><input id="k2" class="num" type="number" step="0.5" min="0.5" value="275"></label>
+      </div>
+      <div class="row">
+        <label>Expiration date<input id="exp" type="date" value="2026-11-20"></label>
+        <label>Contracts<input id="qty" class="num" type="number" step="1" min="1" value="1"></label>
+      </div>
+      <details>
+        <summary>Pricing assumptions</summary>
+        <div class="row">
+          <label>Implied volatility (%)<input id="iv" class="num" type="number" step="0.5" min="1" value="28"></label>
+          <label>Risk-free rate (%)<input id="rate" class="num" type="number" step="0.05" min="0" value="3.60"></label>
+        </div>
+      </details>
+      <p class="err" id="err" hidden></p>
+    </form>
+
+    <section class="out">
+      <div class="stats" id="stats"></div>
+
+      <div class="panel" style="display:grid;gap:14px">
+        <div class="chart-head">
+          <h2 id="chartTitle">Profit / loss</h2>
+          <div class="legend"><span><i></i>At expiration</span><span><i class="d"></i>On scenario date</span></div>
+        </div>
+        <canvas id="chart" aria-label="Profit and loss chart"></canvas>
+        <div class="slider">
+          <label for="day" style="color:var(--ink)">Scenario date: <b id="dayLabel"></b></label>
+          <input id="day" type="range" min="0" max="37" value="0">
+          <div><span>Today</span><span>Expiration</span></div>
+        </div>
+        <div class="greeks" id="greeks"></div>
+      </div>
+
+      <div class="panel" style="display:grid;gap:12px">
+        <div class="chart-head"><h2>Scenarios by stock move</h2></div>
+        <div class="scroll"><table id="scen"></table></div>
+      </div>
+
+      <div class="panel" style="display:grid;gap:12px">
+        <div class="chart-head"><h2>Legs and entry prices</h2><button type="button" id="resetPx">Reset to model prices</button></div>
+        <div class="scroll"><table class="legs" id="legs"></table></div>
+        <p class="foot">Option prices start as Black-Scholes estimates from your volatility input. Type your broker's actual fill or mid price into any leg for exact results.</p>
+      </div>
+
+      <p class="foot">Model assumptions: European-style pricing, no dividends, no early assignment, no commissions. Probability of profit uses a lognormal distribution at the implied volatility you enter. For education and planning, not investment advice.</p>
+    </section>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const STRATS={
+  long_call:{k2:false,k1L:'Call strike ($)',hint:'Bullish. Pay a premium for the right to buy at the strike. Risk is limited to the premium paid.',legs:(a)=>[{t:'C',k:a,q:1}]},
+  long_put:{k2:false,k1L:'Put strike ($)',hint:'Bearish. Pay a premium for the right to sell at the strike. Risk is limited to the premium paid.',legs:(a)=>[{t:'P',k:a,q:1}]},
+  covered_call:{k2:false,k1L:'Call strike to sell ($)',hint:'Own 100 shares per contract and sell a call against them. Collects income, caps upside at the strike.',legs:(a)=>[{t:'S',q:1},{t:'C',k:a,q:-1}]},
+  csp:{k2:false,k1L:'Put strike to sell ($)',hint:'Sell a put with cash set aside to buy the shares at the strike. Earns the premium; you may be assigned.',legs:(a)=>[{t:'P',k:a,q:-1}]},
+  protective_put:{k2:false,k1L:'Put strike ($)',hint:'Own 100 shares per contract and buy a put as insurance. Sets a floor on losses.',legs:(a)=>[{t:'S',q:1},{t:'P',k:a,q:1}]},
+  bull_call:{k2:true,k1L:'Buy call strike ($)',k2L:'Sell call strike ($)',rule:(a,b)=>b>a?'':'The sold call strike must be above the bought call strike.',hint:'Moderately bullish. Buy a call and sell a higher one to cut the cost. Profit and loss are both capped.',legs:(a,b)=>[{t:'C',k:a,q:1},{t:'C',k:b,q:-1}],def:s=>[s*1.0,s*1.06]},
+  bear_put:{k2:true,k1L:'Buy put strike ($)',k2L:'Sell put strike ($)',rule:(a,b)=>b<a?'':'The sold put strike must be below the bought put strike.',hint:'Moderately bearish. Buy a put and sell a lower one to cut the cost. Profit and loss are both capped.',legs:(a,b)=>[{t:'P',k:a,q:1},{t:'P',k:b,q:-1}],def:s=>[s*1.0,s*0.94]},
+  straddle:{k2:false,k1L:'Strike ($)',hint:'Expect a big move, direction unknown. Buy a call and a put at the same strike.',legs:(a)=>[{t:'C',k:a,q:1},{t:'P',k:a,q:1}]},
+  strangle:{k2:true,k1L:'Put strike ($)',k2L:'Call strike ($)',rule:(a,b)=>b>a?'':'The call strike must be above the put strike.',hint:'Expect a big move, cheaper than a straddle. Buy an out-of-the-money put and call.',legs:(a,b)=>[{t:'P',k:a,q:1},{t:'C',k:b,q:1}],def:s=>[s*0.95,s*1.05]}
+};
+const overrides={};
+
+/* ---------- math ---------- */
+function erf(x){const s=Math.sign(x);x=Math.abs(x);const t=1/(1+.3275911*x);const y=1-(((((1.061405429*t-1.453152027)*t)+1.421413741)*t-.284496736)*t+.254829592)*t*Math.exp(-x*x);return s*y}
+const N=x=>.5*(1+erf(x/Math.SQRT2));
+const n=x=>Math.exp(-x*x/2)/Math.sqrt(2*Math.PI);
+function bs(t,S,K,T,r,v){
+  if(t==='S')return{p:S,d:1,g:0,th:0,ve:0};
+  if(T<=1e-6||S<=0){const p=t==='C'?Math.max(S-K,0):Math.max(K-S,0);return{p,d:t==='C'?(S>K?1:0):(S<K?-1:0),g:0,th:0,ve:0}}
+  const sq=Math.sqrt(T),d1=(Math.log(S/K)+(r+v*v/2)*T)/(v*sq),d2=d1-v*sq,df=Math.exp(-r*T);
+  const g=n(d1)/(S*v*sq),ve=S*n(d1)*sq/100,base=-(S*n(d1)*v)/(2*sq);
+  if(t==='C')return{p:S*N(d1)-K*df*N(d2),d:N(d1),g,ve,th:(base-r*K*df*N(d2))/365};
+  return{p:K*df*N(-d2)-S*N(-d1),d:N(d1)-1,g,ve,th:(base+r*K*df*N(-d2))/365};
+}
+
+/* ---------- helpers ---------- */
+const money=(x,dp=0)=>{const s=Math.abs(x).toLocaleString('en-US',{minimumFractionDigits:dp,maximumFractionDigits:dp});return(x<0?'−$':'$')+s};
+const signed=x=>(x>0?'+':'')+money(x);
+const cls=x=>x>0.005?'pos':x<-0.005?'neg':'';
+const legKey=l=>l.t+(l.k??'');
+function occ(sym,exp,l){if(l.t==='S')return sym+' shares';const [y,m,d]=exp.split('-');return `${sym} ${y.slice(2)}${m}${d}${l.t}${String(Math.round(l.k*1000)).padStart(8,'0')}`}
+function daysTo(exp){const now=new Date();const t0=new Date(now.getFullYear(),now.getMonth(),now.getDate());const [y,m,d]=exp.split('-').map(Number);return Math.round((new Date(y,m-1,d)-t0)/864e5)}
+function fmtDate(off){const d=new Date();d.setDate(d.getDate()+off);return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
+
+/* ---------- state ---------- */
+const ids=['sym','spot','strat','k1','k2','exp','qty','iv','rate'];
+try{const s=JSON.parse(localStorage.getItem('optcalc')||'null');if(s)ids.forEach(i=>{if(s[i]!=null)$(i).value=s[i]})}catch(e){}
+function save(){try{const o={};ids.forEach(i=>o[i]=$(i).value);localStorage.setItem('optcalc',JSON.stringify(o))}catch(e){}}
+
+let M=null; // computed model
+
+function compute(){
+  const sym=($('sym').value.trim().toUpperCase()||'TICKER');
+  const S0=+$('spot').value,k1=+$('k1').value,k2=+$('k2').value,exp=$('exp').value;
+  const qty=Math.max(1,Math.round(+$('qty').value||1)),v=(+$('iv').value)/100,r=(+$('rate').value)/100;
+  const st=STRATS[$('strat').value];
+  let e='';
+  if(!(S0>0))e='Enter the current stock price.';
+  else if(!(k1>0)||(st.k2&&!(k2>0)))e='Enter a strike price above zero.';
+  else if(!exp)e='Choose an expiration date.';
+  else if(daysTo(exp)<1)e='The expiration date must be after today.';
+  else if(!(v>0))e='Enter an implied volatility above zero.';
+  else if(st.rule)e=st.rule(k1,k2);
+  $('err').hidden=!e;$('err').textContent=e;
+  if(e)return null;
+  const dte=daysTo(exp),T=dte/365;
+  const legs=st.legs(k1,k2).map(l=>{const m=bs(l.t,S0,l.k,T,r,v);const key=legKey(l);const px=overrides[key]!=null?overrides[key]:m.p;return{...l,model:m.p,px,manual:overrides[key]!=null,gr:m}});
+  const mult=100*qty;
+  const pnl=(S,Ty)=>legs.reduce((a,l)=>a+l.q*(bs(l.t,S,l.k,Ty,r,v).p-l.px),0)*mult;
+  const net=legs.reduce((a,l)=>a+l.q*l.px,0)*mult; // >0 debit
+  // grid at expiry
+  const hi=S0*5,G=4000,xs=[],ys=[];
+  for(let i=0;i<=G;i++){const S=hi*i/G;xs.push(S);ys.push(pnl(S,0))}
+  let mx=-Infinity,mn=Infinity;ys.forEach(y=>{mx=Math.max(mx,y);mn=Math.min(mn,y)});
+  const slope=ys[G]-ys[G-1];
+  const unlimUp=slope>1e-6,unlimDn=slope<-1e-6;
+  const bes=[];for(let i=1;i<=G;i++){const a=ys[i-1],b=ys[i];if((a<0&&b>=0)||(a>=0&&b<0)){if(a===0&&i>1)continue;bes.push(xs[i-1]+(xs[i]-xs[i-1])*(-a)/(b-a))}}
+  // probability of profit, lognormal
+  const mu=Math.log(S0)+(r-v*v/2)*T,sd=v*Math.sqrt(T);const cdf=S=>S<=0?0:N((Math.log(S)-mu)/sd);
+  let pop=0;for(let i=1;i<=G;i++){const mid=(xs[i-1]+xs[i])/2;if(pnl(mid,0)>0)pop+=cdf(xs[i])-cdf(xs[i-1])}
+  if(unlimUp&&ys[G]>0)pop+=1-cdf(hi);
+  const gk=['d','g','th','ve'].reduce((o,k)=>(o[k]=legs.reduce((a,l)=>a+l.q*l.gr[k],0)*mult,o),{});
+  const risk=unlimDn?Infinity:-mn;
+  return{sym,S0,k1,k2,exp,qty,v,r,dte,T,legs,pnl,net,mx:unlimUp?Infinity:mx,mn:unlimDn?-Infinity:mn,bes,pop,gk,risk,mult,strikes:legs.filter(l=>l.k).map(l=>l.k)};
+}
+
+function render(){
+  save();
+  const sym=$('sym').value.trim().toUpperCase();
+  $('quoteLink').href='https://finance.yahoo.com/quote/'+encodeURIComponent(sym||'AAPL')+'/options';
+  const st=STRATS[$('strat').value];
+  $('hint').textContent=st.hint;$('k1Label').textContent=st.k1L;$('k2Wrap').hidden=!st.k2;if(st.k2)$('k2Label').textContent=st.k2L;
+  M=compute();
+  if(!M){$('stats').innerHTML='';$('scen').innerHTML='';$('legs').innerHTML='';$('greeks').innerHTML='';draw();return}
+  const day=$('day');day.max=M.dte;if(+day.value>M.dte)day.value=M.dte;
+  const dOff=+day.value;$('dayLabel').textContent=fmtDate(dOff)+(dOff===0?' (today)':dOff===M.dte?' (expiration)':` (${M.dte-dOff} days left)`);
+  // stats
+  const netLabel=M.net>=0?'Net debit':'Net credit';
+  const stats=[
+    [netLabel,money(Math.abs(M.net)),''],
+    ['Max profit',M.mx===Infinity?'Unlimited':money(M.mx),M.mx>0?'pos':''],
+    ['Max loss',M.mn===-Infinity?'Unlimited':money(M.mn),M.mn<0?'neg':''],
+    ['Breakeven',M.bes.length?M.bes.map(b=>'$'+b.toFixed(2)).join(' / '):'None',''],
+    ['Chance of profit',(M.pop*100).toFixed(0)+'%',''],
+    ['Days to expiration',M.dte+'',''],
+    ['Expected move ±1σ','±$'+(M.S0*M.v*Math.sqrt(M.T)).toFixed(2),''],
+    ['Return on risk',M.risk===Infinity||M.mx===Infinity||M.risk<=0?'—':(M.mx/M.risk*100).toFixed(0)+'%','']
+  ];
+  $('stats').innerHTML=stats.map(s=>`<div class="stat"><span>${s[0]}</span><b class="${s[2]}">${s[1]}</b></div>`).join('');
+  $('chartTitle').textContent=`${M.sym} · ${$('strat').selectedOptions[0].text} · ${M.qty} contract${M.qty>1?'s':''}`;
+  $('greeks').innerHTML=`<span>Position delta <b>${M.gk.d.toFixed(1)}</b> shares</span><span>Gamma <b>${M.gk.g.toFixed(2)}</b></span><span>Theta <b class="${cls(M.gk.th)}">${signed(M.gk.th)}</b>/day</span><span>Vega <b class="${cls(M.gk.ve)}">${signed(M.gk.ve)}</b> per 1% IV</span>`;
+  // scenarios
+  const Td=(M.dte-dOff)/365,moves=[-.2,-.15,-.1,-.05,0,.05,.1,.15,.2];
+  $('scen').innerHTML=`<thead><tr><th>Stock move</th><th>Price</th><th>P/L on ${fmtDate(dOff).replace(/, \d{4}/,'')}</th><th>P/L at expiration</th><th>% of max risk</th></tr></thead><tbody>`+
+    moves.map(m=>{const S=M.S0*(1+m),a=M.pnl(S,Td),b=M.pnl(S,0);const pr=M.risk===Infinity||M.risk<=0?'—':(b/M.risk*100).toFixed(0)+'%';
+      return `<tr class="${m===0?'now':''}"><td>${m===0?'Unchanged':(m>0?'+':'−')+Math.abs(m*100)+'%'}</td><td>$${S.toFixed(2)}</td><td class="${cls(a)}">${signed(a)}</td><td class="${cls(b)}">${signed(b)}</td><td>${pr}</td></tr>`}).join('')+'</tbody>';
+  // legs
+  $('legs').innerHTML=`<thead><tr><th>Leg</th><th>Contract</th><th>Model price</th><th>Your price</th><th>Delta</th></tr></thead><tbody>`+
+    M.legs.map(l=>{const side=l.q>0?'Buy':'Sell';const what=l.t==='S'?`${100*M.qty} shares`:`${M.qty} ${l.t==='C'?'call':'put'}${M.qty>1?'s':''} @ $${l.k}`;
+      return `<tr><td>${side} ${what}${l.manual?' <span class="tag">your price</span>':''}</td><td class="code">${occ(M.sym,M.exp,l)}</td><td>$${l.model.toFixed(2)}</td><td>${l.t==='S'?'$'+l.px.toFixed(2):`<input type="number" step="0.01" min="0" id="px-${legKey(l)}" data-key="${legKey(l)}" value="${l.px.toFixed(2)}" aria-label="Entry price">`}</td><td>${(l.q*l.gr.d).toFixed(2)}</td></tr>`}).join('')+'</tbody>';
+  draw();
+}
+
+/* ---------- chart ---------- */
+const cv=$('chart'),ctx=cv.getContext('2d');let hoverX=null;
+function css(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim()}
+function draw(){
+  const dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,W,H);
+  if(!M){ctx.fillStyle=css('--muted');ctx.font='14px '+css('--sans');ctx.fillText('Fix the inputs to see the chart.',16,30);return}
+  const span=Math.max(.15,Math.min(.6,2.5*M.v*Math.sqrt(M.T)));
+  let lo=M.S0*(1-span),hi=M.S0*(1+span);
+  [...M.strikes,...M.bes].forEach(k=>{lo=Math.min(lo,k*.95);hi=Math.max(hi,k*1.05)});lo=Math.max(0,lo);
+  const Td=(M.dte-(+$('day').value))/365,P=180,e=[],d=[];
+  for(let i=0;i<=P;i++){const S=lo+(hi-lo)*i/P;e.push([S,M.pnl(S,0)]);d.push([S,M.pnl(S,Td)])}
+  let ymin=Math.min(...e.map(p=>p[1]),...d.map(p=>p[1]),0),ymax=Math.max(...e.map(p=>p[1]),...d.map(p=>p[1]),0);
+  const pad=(ymax-ymin)*.1||100;ymin-=pad;ymax+=pad;
+  const L=64,R=14,Tp=14,B=30,x=S=>L+(S-lo)/(hi-lo)*(W-L-R),y=v=>Tp+(ymax-v)/(ymax-ymin)*(H-Tp-B);
+  const ink=css('--ink'),mut=css('--muted'),line=css('--line'),acc=css('--accent'),gain=css('--gain'),loss=css('--loss');
+  ctx.font='11px '+css('--mono');ctx.lineWidth=1;
+  // y grid
+  const step=nice((ymax-ymin)/5);ctx.textAlign='right';ctx.textBaseline='middle';
+  for(let v=Math.ceil(ymin/step)*step;v<=ymax;v+=step){ctx.strokeStyle=line;ctx.beginPath();ctx.moveTo(L,y(v));ctx.lineTo(W-R,y(v));ctx.stroke();ctx.fillStyle=mut;ctx.fillText(compact(v),L-8,y(v))}
+  // x ticks
+  const xs=nice((hi-lo)/6);ctx.textAlign='center';ctx.textBaseline='top';
+  for(let S=Math.ceil(lo/xs)*xs;S<=hi;S+=xs){ctx.fillStyle=mut;ctx.fillText('$'+(+S.toFixed(2)),x(S),H-B+8)}
+  // fills for expiry curve
+  ctx.save();ctx.beginPath();ctx.rect(L,Tp,W-L-R,y(0)-Tp);ctx.clip();fillCurve(e,x,y,css('--gain-fill'));ctx.restore();
+  ctx.save();ctx.beginPath();ctx.rect(L,y(0),W-L-R,H-B-y(0));ctx.clip();fillCurve(e,x,y,css('--loss-fill'));ctx.restore();
+  // zero
+  ctx.strokeStyle=mut;ctx.beginPath();ctx.moveTo(L,y(0));ctx.lineTo(W-R,y(0));ctx.stroke();
+  // spot
+  ctx.setLineDash([2,3]);ctx.strokeStyle=mut;ctx.beginPath();ctx.moveTo(x(M.S0),Tp);ctx.lineTo(x(M.S0),H-B);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle=mut;ctx.textAlign='left';ctx.textBaseline='top';ctx.fillText('Now $'+M.S0.toFixed(2),Math.min(x(M.S0)+5,W-R-90),Tp+2);
+  // curves
+  stroke(d,x,y,acc,[6,4]);stroke(e,x,y,ink,[]);
+  // breakevens
+  M.bes.forEach(b=>{if(b<lo||b>hi)return;ctx.fillStyle=css('--surface');ctx.strokeStyle=ink;ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(x(b),y(0),4,0,7);ctx.fill();ctx.stroke()});
+  // hover
+  if(hoverX!=null&&hoverX>=L&&hoverX<=W-R){const S=lo+(hoverX-L)/(W-L-R)*(hi-lo),pe=M.pnl(S,0),pd=M.pnl(S,Td);
+    ctx.strokeStyle=mut;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(hoverX,Tp);ctx.lineTo(hoverX,H-B);ctx.stroke();
+    [[pe,ink],[pd,acc]].forEach(([v,c])=>{ctx.fillStyle=c;ctx.beginPath();ctx.arc(hoverX,y(v),3.5,0,7);ctx.fill()});
+    const lines=['Stock $'+S.toFixed(2),'Expiry '+signed(pe),'Scenario '+signed(pd)];
+    ctx.font='12px '+css('--mono');const bw=Math.max(...lines.map(t=>ctx.measureText(t).width))+16,bh=58;
+    let bx=hoverX+10;if(bx+bw>W-R)bx=hoverX-10-bw;
+    ctx.fillStyle=css('--surface');ctx.strokeStyle=line;ctx.beginPath();ctx.rect(bx,Tp+18,bw,bh);ctx.fill();ctx.stroke();
+    ctx.textAlign='left';lines.forEach((t,i)=>{ctx.fillStyle=i===0?mut:i===1?(pe>=0?gain:loss):(pd>=0?gain:loss);ctx.fillText(t,bx+8,Tp+26+i*17)})}
+}
+function fillCurve(p,x,y,c){ctx.fillStyle=c;ctx.beginPath();ctx.moveTo(x(p[0][0]),y(0));p.forEach(q=>ctx.lineTo(x(q[0]),y(q[1])));ctx.lineTo(x(p[p.length-1][0]),y(0));ctx.closePath();ctx.fill()}
+function stroke(p,x,y,c,dash){ctx.setLineDash(dash);ctx.strokeStyle=c;ctx.lineWidth=2;ctx.lineJoin='round';ctx.beginPath();p.forEach((q,i)=>i?ctx.lineTo(x(q[0]),y(q[1])):ctx.moveTo(x(q[0]),y(q[1])));ctx.stroke();ctx.setLineDash([])}
+function nice(r){const p=Math.pow(10,Math.floor(Math.log10(r))),f=r/p;return(f<1.5?1:f<3?2:f<7?5:10)*p}
+function compact(v){const a=Math.abs(v),s=v<0?'−$':'$';return a>=1e6?s+(a/1e6).toFixed(1)+'M':a>=1e3?s+(a/1e3).toFixed(a>=1e4?0:1)+'k':s+a.toFixed(0)}
+
+/* ---------- events ---------- */
+$('form').addEventListener('submit',ev=>ev.preventDefault());
+['sym','spot','k1','k2','exp','qty','iv','rate'].forEach(i=>$(i).addEventListener('input',render));
+$('strat').addEventListener('change',()=>{const st=STRATS[$('strat').value],S=+$('spot').value||100;Object.keys(overrides).forEach(k=>delete overrides[k]);
+  if(st.def){const r=x=>x>=100?Math.round(x/5)*5:x>=25?Math.round(x):Math.round(x*2)/2;const[a,b]=st.def(S);$('k1').value=r(a);$('k2').value=r(b)}render()});
+$('legs').addEventListener('change',ev=>{const k=ev.target.dataset.key;if(!k)return;const v=parseFloat(ev.target.value);if(v>=0){overrides[k]=v;render()}});
+$('resetPx').addEventListener('click',()=>{Object.keys(overrides).forEach(k=>delete overrides[k]);render()});
+$('day').addEventListener('input',render);
+cv.addEventListener('pointermove',ev=>{const r=cv.getBoundingClientRect();hoverX=ev.clientX-r.left;draw()});
+cv.addEventListener('pointerleave',()=>{hoverX=null;draw()});
+window.addEventListener('resize',draw);
+if(window.matchMedia)matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',draw);
+new MutationObserver(draw).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+if(document.fonts)document.fonts.ready.then(draw);
+render();
+</script>
+
+<script>
+if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}))}
+</script>
+</body>
+</html>
