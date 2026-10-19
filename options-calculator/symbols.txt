@@ -1,0 +1,14 @@
+# Symbols the quote robot keeps up to date (one per line, up to 40).
+# Edit this file on GitHub to add or remove symbols. The robot runs again
+# right after you save, and every 10 minutes while the market is open.
+# Indexes work too: SPX, NDX, RUT, VIX, XSP.
+AAPL
+MSFT
+NVDA
+AMZN
+GOOGL
+META
+TSLA
+SPY
+QQQ
+IWM
