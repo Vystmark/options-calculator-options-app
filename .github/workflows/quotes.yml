@@ -1,0 +1,49 @@
+# Quote robot: downloads Cboe's 15-minute-delayed option chains for the symbols in
+# symbols.txt and publishes them to the `quotes` branch, where the app reads them.
+# Works whether the app files are at the top of the repository or inside one folder.
+name: Update option quotes
+
+on:
+  schedule:
+    # Every 10 minutes, Monday to Friday, 9:00 AM to 5:59 PM New York time
+    # (13:00-21:59 UTC covers both daylight and standard time).
+    - cron: '*/10 13-21 * * 1-5'
+  workflow_dispatch:        # "Run workflow" button on the Actions tab
+  push:
+    branches: [main]
+    paths: ['**symbols.txt', '**fetch_quotes.py', '.github/workflows/quotes.yml']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: quotes
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download option chains from Cboe
+        run: |
+          SCRIPT=$(find . -path ./.git -prune -o -name fetch_quotes.py -print | head -n 1)
+          if [ -z "$SCRIPT" ]; then echo "tools/fetch_quotes.py not found in the repository"; exit 1; fi
+          APPDIR=$(dirname "$(dirname "$SCRIPT")")
+          echo "App folder: $APPDIR"
+          python3 "$SCRIPT" "$APPDIR/symbols.txt" quotes-out
+
+      - name: Publish to the quotes branch
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          cd quotes-out
+          git init -q -b quotes
+          git config user.name "quote-robot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Option quotes $(date -u +'%Y-%m-%d %H:%M UTC')"
+          git push -q -f "https://x-access-token:${TOKEN}@github.com/${REPO}.git" quotes
