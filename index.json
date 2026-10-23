@@ -1,0 +1,22 @@
+{
+ "v": 1,
+ "updated": "2026-10-23T23:34:20.297967Z",
+ "symbols": [
+  "AAPL",
+  "MSFT",
+  "NVDA",
+  "AMZN",
+  "GOOGL",
+  "META",
+  "TSLA",
+  "SPY",
+  "QQQ",
+  "IWM",
+  "SPCX",
+  "VECO",
+  "SCHD",
+  "SPX"
+ ],
+ "errors": {},
+ "source": "Cboe delayed quotes (15-minute delay)"
+}
